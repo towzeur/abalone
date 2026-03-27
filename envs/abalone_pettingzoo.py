@@ -4,6 +4,7 @@ from gymnasium import spaces
 import numpy as np
 from game.engine.v2 import EngineV2
 from game.adapters.obs_codec import encode_observation, legal_action_mask
+from game.common.renderer import AbaloneRenderer
 from pettingzoo import AECEnv
 from pettingzoo.utils import agent_selector, wrappers
 
@@ -21,10 +22,10 @@ def env(render_mode=None, variant="classical", max_steps=200):
 
 class raw_env(AECEnv):
     metadata = {
-        "render_modes": ["human", "ansi"],
+        "render_modes": ["human", "ansi", "rgb_array"],
         "name": "abalone_v2",
         "is_parallelizable": False,
-        "render_fps": 4,
+        "render_fps": 10,
     }
 
     def __init__(self, render_mode=None, variant="classical", max_steps=200):
@@ -39,6 +40,9 @@ class raw_env(AECEnv):
         
         self.engine = None
         self.current_step = 0
+        self.renderer = None
+        if self.render_mode in {"human", "rgb_array"}:
+            self.renderer = AbaloneRenderer(render_mode, window_size=(160, 160), fps=self.metadata["render_fps"])
 
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
@@ -52,13 +56,10 @@ class raw_env(AECEnv):
         return spaces.Discrete(2562)
 
     def render(self):
-        board_str = self.engine.render_text()
         if self.render_mode == "ansi":
-            return board_str
-        elif self.render_mode == "human":
-            print(f"\nStep: {self.current_step} | Player: {self.agent_selection} | Score: {self.engine.damages}")
-            print(board_str)
-            print("-" * 20)
+            return self.engine.render_text()
+        elif self.renderer:
+            return self.renderer.render(self.engine)
 
     def observe(self, agent):
         return {
@@ -85,6 +86,9 @@ class raw_env(AECEnv):
         
         self._agent_selector.reinit(self.agents)
         self.agent_selection = self._agent_selector.next()
+        
+        if self.render_mode == "human":
+            self.render()
 
     def step(self, action):
         if self.terminations[self.agent_selection] or self.truncations[self.agent_selection]:
@@ -117,4 +121,6 @@ class raw_env(AECEnv):
             self.render()
 
     def close(self):
-        pass
+        if self.renderer:
+            self.renderer.close()
+            self.renderer = None

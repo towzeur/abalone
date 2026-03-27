@@ -3,6 +3,7 @@ from gymnasium import spaces
 import numpy as np
 from game.engine.v2 import EngineV2
 from game.adapters.obs_codec import encode_observation, legal_action_mask
+from game.common.renderer import AbaloneRenderer
 
 REWARDS = {
     'winner': 12,
@@ -13,7 +14,7 @@ REWARDS = {
 }
 
 class AbaloneGymEnv(gym.Env):
-    metadata = {"render_modes": ["human", "ansi"], "render_fps": 4}
+    metadata = {"render_modes": ["human", "ansi", "rgb_array"], "render_fps": 10}
 
     def __init__(self, render_mode=None, variant="classical", max_steps=200):
         super().__init__()
@@ -29,6 +30,9 @@ class AbaloneGymEnv(gym.Env):
         })
         
         self.engine = None
+        self.renderer = None
+        if self.render_mode in {"human", "rgb_array"}:
+            self.renderer = AbaloneRenderer(render_mode, window_size=(160, 160), fps=self.metadata["render_fps"])
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
@@ -79,13 +83,12 @@ class AbaloneGymEnv(gym.Env):
         }
 
     def render(self):
-        board_str = self.engine.render_text()
         if self.render_mode == "ansi":
-            return board_str
-        elif self.render_mode == "human":
-            print(f"\nStep: {self.current_step} | Turn: {self.engine.to_play} | Score: {self.engine.damages}")
-            print(board_str)
-            print("-" * 20)
+            return self.engine.render_text()
+        elif self.renderer:
+            return self.renderer.render(self.engine)
 
     def close(self):
-        pass
+        if self.renderer:
+            self.renderer.close()
+            self.renderer = None

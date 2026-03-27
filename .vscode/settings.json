@@ -1,0 +1,4 @@
+{
+    // disable auto format on save
+    "editor.formatOnSave": false,
+}
